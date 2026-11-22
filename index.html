@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>吐出量填報計算機</title>
+<meta name="description" content="排廢吐出量填報計算機：記錄主GP／副GP轉速變更，計算排廢重量與平均轉速。">
+<meta name="theme-color" content="#14161B">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/favicon.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="吐出量計算">
+<style>
+  :root{
+    --ink:#14161B; --muted:#5B6170; --line:#E1E4E9; --soft:#F5F6F8; --bg:#F2F3F5;
+    --blue:#1D4ED8; --green:#0F6B4F; --red:#B42318;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei","Segoe UI",Roboto,sans-serif;
+    font-variant-numeric:tabular-nums;-webkit-text-size-adjust:100%}
+  button,input{font-family:inherit}
+  button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+  button:disabled{opacity:.38;cursor:not-allowed}
+  input:focus,button:focus-visible{outline:3px solid #9DB8FF;outline-offset:1px}
+
+  header{background:var(--ink);color:#fff;padding:calc(12px + env(safe-area-inset-top)) 16px 12px;position:sticky;top:0;z-index:5}
+  .hwrap{max-width:1100px;margin:0 auto;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+  h1{margin:0;font-size:20px}
+  nav{display:flex;gap:4px;padding:4px;background:#262A33;border-radius:12px;width:100%;max-width:420px}
+  .tab{flex:1;min-height:44px;border:0;border-radius:9px;background:transparent;color:#C9CDD6;font-size:15px;font-weight:500}
+  .tab.on{background:#fff;color:var(--ink);font-weight:700}
+
+  main{max-width:1100px;margin:0 auto;padding:16px 16px calc(24px + env(safe-area-inset-bottom))}
+  .cols{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
+  .col-l{flex:1 1 360px;min-width:0;display:flex;flex-direction:column;gap:16px}
+  .col-r{flex:999 1 480px;min-width:0;display:flex;flex-direction:column;gap:16px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:14px}
+  .card.dark{background:var(--ink);color:#fff;border-color:var(--ink)}
+  h2{margin:0;font-size:17px}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .hint{font-size:13px;color:var(--muted)}
+  .sep{border-top:1px solid #ECEEF1}
+
+  .mgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+  .mbtn{min-height:54px;border-radius:10px;border:1px solid #D5D8DE;background:#fff;color:var(--ink);font-size:20px;font-weight:700}
+  .mbtn.on{background:var(--blue);border-color:var(--blue);color:#fff}
+
+  .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .stat{background:var(--soft);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+  .stat .k{font-size:13px;color:var(--muted)}
+  .stat .v{font-size:24px;font-weight:700;overflow-wrap:anywhere}
+  .stat .u{font-size:13px;font-weight:500;color:var(--muted)}
+
+  .big{min-height:56px;min-width:150px;padding:0 18px;border:0;border-radius:10px;color:#fff;font-size:17px;font-weight:700}
+  .go{background:var(--green)} .halt{background:var(--red)}
+  .when{display:flex;flex-direction:column;gap:2px}
+  .when .v{font-size:16px;font-weight:600}
+
+  label.f{font-size:15px;font-weight:700}
+  .inrow{display:flex;gap:8px}
+  .inrow input{flex:1 1 auto;min-width:0;min-height:52px;padding:0 14px;border:1px solid #C9CDD6;border-radius:10px;font-size:22px;font-weight:600;color:var(--ink);background:#fff}
+  .inrow input:disabled{background:var(--soft)}
+  .ok{flex:0 0 auto;white-space:nowrap;min-height:52px;padding:0 22px;border:0;border-radius:10px;background:var(--blue);color:#fff;font-size:16px;font-weight:700}
+  .meta{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+  .meta strong{color:var(--ink);font-size:15px}
+  .msg{margin:0;padding:10px 12px;border-radius:10px;background:#FFF4E5;color:#7A3E00;font-size:14px}
+
+  .pill{padding:6px 12px;border-radius:999px;font-size:14px;font-weight:700}
+  .pill.idle{background:#ECEEF1;color:#3E4350}
+  .pill.run{background:#DDF3EA;color:#0B5A41}
+  .pill.done{background:#E4ECFF;color:#1A3FB0}
+
+  .res{background:#232731;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:4px}
+  .res .k{font-size:14px;color:#C2C7D0}
+  .res .v{font-size:28px;font-weight:700}
+  .res.hero .v{font-size:42px}
+  .span2{grid-column:1/-1}
+  .ghost{min-height:44px;padding:0 16px;border:1px solid #4A505C;border-radius:10px;background:transparent;color:#fff;font-size:15px;font-weight:600}
+  .ghost.light{border-color:#C9CDD6;color:var(--ink);background:#fff}
+
+  .tscroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{background:var(--soft);font-weight:600;color:#3E4350;padding:10px;text-align:right;white-space:nowrap}
+  td{padding:10px;text-align:right;border-bottom:1px solid #ECEEF1;white-space:nowrap}
+  th.l,td.l{text-align:left}
+  .seg{min-width:540px}
+  .rates{font-size:17px}
+  .rates th{background:var(--ink);color:#fff;padding:14px}
+  .rates td{padding:14px}
+  .rates tr.on{background:#EAF0FF}
+  .rates tr.on td{font-weight:700}
+  .formula p{margin:0;font-size:15px;line-height:1.7}
+
+  .hist{display:flex;flex-direction:column;gap:10px}
+  .hitem{border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px}
+  .hitem .top{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:14px;color:var(--muted)}
+  .hitem .top b{color:var(--ink);font-size:16px}
+  .hitem .nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .hitem .nums div{background:var(--soft);border-radius:8px;padding:8px}
+  .hitem .nums span{display:block;font-size:12px;color:var(--muted)}
+  .hitem .nums b{font-size:18px}
+  .small{min-height:44px;padding:0 14px;border:1px solid #C9CDD6;border-radius:10px;background:#fff;color:var(--ink);font-size:14px;font-weight:600}
+  .hidden{display:none !important}
+  .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;z-index:9}
+</style>
+</head>
+<body>
+<header>
+  <div class="hwrap">
+    <h1>吐出量填報計算機</h1>
+    <nav aria-label="頁面切換">
+      <button type="button" class="tab on" data-tab="calc">計算機</button>
+      <button type="button" class="tab" data-tab="table">對照表</button>
+      <button type="button" class="tab" data-tab="hist">歷史紀錄</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <!-- 計算機 -->
+  <section id="page-calc" class="cols">
+    <div class="col-l">
+      <div class="card">
+        <div class="row"><h2>1　選擇機號</h2><span class="hint" id="machineHint">點選要使用的機號</span></div>
+        <div class="mgrid" id="machineGrid"></div>
+        <div class="grid2">
+          <div class="stat"><span class="k">主GP吐出量</span><span class="v"><span id="rateMain">—</span> <span class="u">Kg/轉</span></span></div>
+          <div class="stat"><span class="k">副GP吐出量</span><span class="v"><span id="rateSub">—</span> <span class="u">Kg/轉</span></span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>2　排廢操作</h2>
+        <div class="row" style="justify-content:flex-start">
+          <button type="button" class="big go" id="btnStart">開始排廢</button>
+          <div class="when"><span class="hint">開始時間</span><span class="v" id="startText">—</span></div>
+        </div>
+        <div class="sep"></div>
+
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <label class="f" for="mainInput">主GP轉速 (RPM)</label>
+          <div class="inrow">
+            <input id="mainInput" type="text" inputmode="decimal" autocomplete="off" placeholder="例：12.50" enterkeyhint="done">
+            <button type="button" class="ok" id="btnMain">確認</button>
+          </div>
+          <div class="meta"><span>目前設定：<strong id="mainCur">—</strong></span><span id="mainSet">尚未設定</span></div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <label class="f" for="subInput">副GP轉速 (RPM)</label>
+          <div class="inrow">
+            <input id="subInput" type="text" inputmode="decimal" autocomplete="off" placeholder="例：8.00" enterkeyhint="done">
+            <button type="button" class="ok" id="btnSub">確認</button>
+          </div>
+          <div class="meta"><span>目前設定：<strong id="subCur">—</strong></span><span id="subSet">尚未設定</span></div>
+        </div>
+
+        <p class="hint" style="margin:0">轉速可輸入至十位數、小數點後兩位（0 ~ 99.99），按「確認」記錄。</p>
+        <div class="sep"></div>
+
+        <div class="row" style="justify-content:flex-start">
+          <button type="button" class="big halt" id="btnStop">停止排廢</button>
+          <div class="when"><span class="hint">停止時間</span><span class="v" id="stopText">—</span></div>
+        </div>
+        <p class="msg hidden" id="msg" role="status"></p>
+      </div>
+    </div>
+
+    <div class="col-r">
+      <div class="card">
+        <div class="row"><h2>即時狀態</h2><span class="pill idle" id="status">待機</span></div>
+        <div class="grid2">
+          <div class="stat"><span class="k">機號</span><span class="v" id="sMachine">—</span></div>
+          <div class="stat"><span class="k">累計排廢時間 (分)</span><span class="v" id="sElapsed">0.00</span></div>
+          <div class="stat"><span class="k">目前每分鐘排廢 (Kg/分)</span><span class="v" id="sRate">—</span></div>
+          <div class="stat"><span class="k">即時累計排廢 (Kg)</span><span class="v" id="sKg">0.00</span></div>
+        </div>
+      </div>
+
+      <div class="card dark">
+        <div class="row">
+          <h2>3　計算結果</h2>
+          <div style="display:flex;gap:8px">
+            <button type="button" class="ghost hidden" id="btnCopy">複製結果</button>
+            <button type="button" class="ghost hidden" id="btnReset">新的一筆</button>
+          </div>
+        </div>
+        <div class="grid2 hidden" id="result">
+          <div class="res hero span2"><span class="k">排廢重量 (Kg)</span><span class="v" id="rKg"></span></div>
+          <div class="res"><span class="k">平均主GP轉速 (RPM)</span><span class="v" id="rMain"></span></div>
+          <div class="res"><span class="k">平均副GP轉速 (RPM)</span><span class="v" id="rSub"></span></div>
+          <div class="span2" style="font-size:14px;color:#C2C7D0" id="rMeta"></div>
+        </div>
+        <p id="noResult" style="margin:0;font-size:15px;color:#C2C7D0">按下「停止排廢」後，在此顯示排廢重量、平均主GP轉速與平均副GP轉速。</p>
+      </div>
+
+      <div class="card">
+        <h2>轉速變更紀錄</h2>
+        <div class="tscroll">
+          <table class="seg">
+            <thead><tr><th class="l">#</th><th class="l">起</th><th class="l">迄</th><th>時間(分)</th><th>主GP RPM</th><th>副GP RPM</th><th>排廢(Kg)</th></tr></thead>
+            <tbody id="segBody"></tbody>
+          </table>
+        </div>
+        <p class="hint" id="noRows" style="margin:0">尚無紀錄。開始排廢後，每次確認轉速都會新增一段。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 對照表 -->
+  <section id="page-table" class="hidden" style="max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:16px">
+    <div class="card">
+      <h2 style="font-size:19px">各機號吐出量對照表</h2>
+      <div class="tscroll">
+        <table class="rates">
+          <thead><tr><th class="l">機號</th><th>主GP吐出量 (Kg/轉)</th><th>副GP吐出量 (Kg/轉)</th></tr></thead>
+          <tbody id="rateBody"></tbody>
+        </table>
+      </div>
+      <p class="hint" style="margin:0">藍底為目前選定的機號。</p>
+    </div>
+    <div class="card formula">
+      <h2>計算方式</h2>
+      <p>每次確認轉速會切出一段區間，每段排廢量 = [主GP吐出量 × 主GP轉速 + 副GP吐出量 × 副GP轉速] × 該段時間(分)。</p>
+      <p>排廢重量(Kg) = 各段排廢量加總。</p>
+      <p>平均主GP轉速 = Σ(主GP轉速 × 該段時間) ÷ 累計排廢時間；平均副GP轉速同理。</p>
+      <p>因此：排廢重量 = [主GP吐出量 × 平均主GP轉速 + 副GP吐出量 × 平均副GP轉速] × 累計排廢時間(分)。</p>
+    </div>
+  </section>
+
+  <!-- 歷史紀錄 -->
+  <section id="page-hist" class="hidden" style="max-width:760px;margin:0 auto">
+    <div class="card">
+      <div class="row"><h2>歷史紀錄</h2><button type="button" class="small" id="btnClearHist">清除全部</button></div>
+      <p class="hint" style="margin:0">紀錄只存在這支手機上，最多保留最近 200 筆。</p>
+      <div class="hist" id="histList"></div>
+      <p class="hint" id="noHist" style="margin:0">尚無已完成的排廢紀錄。</p>
+    </div>
+  </section>
+</main>
+<div class="toast hidden" id="toast" role="status"></div>
+
+<script>
+(function () {
+  'use strict';
+  var RATES = {
+    '01': [1.09, 0.48], '02': [2.19, 0], '03': [2.19, 0.63], '04': [3.27, 0.48],
+    '05': [3.27, 0.48], '06': [3.27, 0.48], '07': [3.27, 0.48], '08': [3.27, 0.48]
+  };
+  var IDS = Object.keys(RATES);
+  var RPM_RE = /^\d{0,2}(\.\d{0,2})?$/;
+  var KEY = 'gp-calc-state-v1', HKEY = 'gp-calc-history-v1', HMAX = 200;
+
+  function $(id) { return document.getElementById(id); }
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+  function clock(t) { var d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()); }
+  function dateStr(t) { var d = new Date(t); return d.getFullYear() + '/' + pad(d.getMonth() + 1) + '/' + pad(d.getDate()); }
+  function f2(n) { return (Math.round(n * 100) / 100).toFixed(2); }
+  function mins(a, b) { return Math.max(0, (b - a) / 60000); }
+  function validRpm(s) { return s !== '' && s !== '.' && RPM_RE.test(s) && !isNaN(parseFloat(s)); }
+
+  function load(k, fallback) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; } }
+  function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
+  function fresh(machine) {
+    return { machine: machine || null, mainRpm: null, subRpm: null, mainSetAt: null, subSetAt: null,
+      running: false, startAt: null, stopAt: null, segStart: null, segments: [], result: null };
+  }
+  var S = Object.assign(fresh(), load(KEY, {}));
+  var H = load(HKEY, []);
+  var tab = 'calc', message = '';
+
+  function persist() { save(KEY, S); }
+  function rates() { return RATES[S.machine] || [0, 0]; }
+  function segKg(g) { var r = rates(); return (r[0] * g.main + r[1] * g.sub) * mins(g.start, g.end); }
+  function closeSeg(t) { if (t - S.segStart >= 1) S.segments.push({ start: S.segStart, end: t, main: S.mainRpm, sub: S.subRpm || 0 }); S.segStart = t; }
+  function setMsg(m) { message = m || ''; }
+  function toast(t) { var el = $('toast'); el.textContent = t; el.classList.remove('hidden'); clearTimeout(toast._t); toast._t = setTimeout(function () { el.classList.add('hidden'); }, 1800); }
+
+  // ---------- actions ----------
+  function pickMachine(id) {
+    if (S.running || S.result) return;
+    S.machine = id; setMsg(''); persist(); render();
+  }
+  function confirmRpm(which) {
+    var input = $(which === 'main' ? 'mainInput' : 'subInput');
+    var raw = input.value.trim();
+    if (!S.machine) { setMsg('請先選擇機號。'); return render(); }
+    if (!validRpm(raw)) { setMsg('請輸入 0 ~ 99.99 的轉速，最多兩位小數。'); return render(); }
+    var v = parseFloat(raw), t = Date.now();
+    if (S.running) closeSeg(t);
+    if (which === 'main') { S.mainRpm = v; S.mainSetAt = t; } else { S.subRpm = v; S.subSetAt = t; }
+    input.value = ''; input.blur();
+    setMsg(''); persist(); render();
+  }
+  function start() {
+    if (!S.machine) { setMsg('請先選擇機號。'); return render(); }
+    if (S.mainRpm === null) { setMsg('請先輸入並確認主GP轉速。'); return render(); }
+    var t = Date.now();
+    setMsg(S.subRpm === null ? '副GP轉速未設定，以 0 RPM 計算。' : '');
+    if (S.subRpm === null) { S.subRpm = 0; S.subSetAt = t; }
+    S.running = true; S.startAt = t; S.segStart = t; S.stopAt = null; S.segments = []; S.result = null;
+    persist(); render();
+  }
+  function stop() {
+    if (!S.running) return;
+    if (!confirm('確定停止排廢並計算結果？')) return;
+    var t = Date.now();
+    closeSeg(t);
+    var total = mins(S.startAt, t), kg = 0, wm = 0, ws = 0;
+    S.segments.forEach(function (g) { var d = mins(g.start, g.end); kg += segKg(g); wm += g.main * d; ws += g.sub * d; });
+    S.running = false; S.stopAt = t;
+    S.result = { kg: kg, avgMain: total > 0 ? wm / total : S.mainRpm, avgSub: total > 0 ? ws / total : S.subRpm, total: total };
+    H.unshift({ machine: S.machine, start: S.startAt, stop: t, total: total, kg: kg, avgMain: S.result.avgMain, avgSub: S.result.avgSub, segments: S.segments.slice() });
+    if (H.length > HMAX) H.length = HMAX;
+    save(HKEY, H);
+    setMsg(''); persist(); render();
+  }
+  function reset() { S = fresh(S.machine); setMsg(''); persist(); render(); }
+
+  function resultText(rec) {
+    return '機號 ' + rec.machine + '\n' +
+      '日期 ' + dateStr(rec.start) + '　' + clock(rec.start) + ' – ' + clock(rec.stop) + '\n' +
+      '累計排廢時間 ' + f2(rec.total) + ' 分\n' +
+      '排廢重量 ' + f2(rec.kg) + ' Kg\n' +
+      '平均主GP轉速 ' + f2(rec.avgMain) + ' RPM\n' +
+      '平均副GP轉速 ' + f2(rec.avgSub) + ' RPM';
+  }
+  function copy(text) {
+    function fallback() {
+      var ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); toast('已複製'); } catch (e) { toast('無法複製'); }
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(function () { toast('已複製'); }, fallback);
+    else fallback();
+  }
+
+  // ---------- render ----------
+  function setTimeText(t) {
+    if (!t) return '尚未設定';
+    return '於 ' + clock(t) + (S.startAt && t >= S.startAt ? '（第 ' + f2(mins(S.startAt, t)) + ' 分）' : '（開始前設定）');
+  }
+  function render() {
+    var done = !!S.result, locked = S.running || done, now = Date.now();
+    ['calc', 'table', 'hist'].forEach(function (p) { $('page-' + p).classList.toggle('hidden', p !== tab); });
+    document.querySelectorAll('.tab').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === tab); });
+
+    // machines
+    $('machineGrid').innerHTML = IDS.map(function (id) {
+      return '<button type="button" class="mbtn' + (id === S.machine ? ' on' : '') + '" data-m="' + id + '" aria-pressed="' + (id === S.machine) + '"' + (locked ? ' disabled' : '') + '>' + id + '</button>';
+    }).join('');
+    $('machineHint').textContent = S.running ? '排廢中，機號已鎖定' : done ? '按「新的一筆」可換機號' : '點選要使用的機號';
+    var r = RATES[S.machine];
+    $('rateMain').textContent = r ? r[0].toFixed(2) : '—';
+    $('rateSub').textContent = r ? r[1].toFixed(2) : '—';
+
+    // controls
+    $('btnStart').disabled = !S.machine || S.mainRpm === null || locked;
+    $('btnStop').disabled = !S.running;
+    ['mainInput', 'subInput'].forEach(function (id) { $(id).disabled = done || !S.machine; });
+    $('btnMain').disabled = done || !S.machine || !validRpm($('mainInput').value.trim());
+    $('btnSub').disabled = done || !S.machine || !validRpm($('subInput').value.trim());
+    $('startText').textContent = S.startAt ? clock(S.startAt) + '（第 0.00 分）' : '—';
+    $('stopText').textContent = S.stopAt ? clock(S.stopAt) + '（第 ' + f2(mins(S.startAt, S.stopAt)) + ' 分）' : '—';
+    $('mainCur').textContent = S.mainRpm === null ? '—' : f2(S.mainRpm) + ' RPM';
+    $('subCur').textContent = S.subRpm === null ? '—' : f2(S.subRpm) + ' RPM';
+    $('mainSet').textContent = setTimeText(S.mainSetAt);
+    $('subSet').textContent = setTimeText(S.subSetAt);
+    $('msg').textContent = message; $('msg').classList.toggle('hidden', !message);
+
+    // status
+    var st = $('status');
+    st.className = 'pill ' + (S.running ? 'run' : done ? 'done' : 'idle');
+    st.textContent = S.running ? '排廢中' : done ? '已完成' : '待機';
+    $('sMachine').textContent = S.machine || '—';
+    var rows = S.segments.map(function (g) { return { from: clock(g.start), to: clock(g.end), dur: mins(g.start, g.end), main: g.main, sub: g.sub, kg: segKg(g) }; });
+    var liveKg = rows.reduce(function (a, x) { return a + x.kg; }, 0);
+    if (S.running) {
+      var open = { start: S.segStart, end: Math.max(now, S.segStart), main: S.mainRpm, sub: S.subRpm || 0 };
+      var ok = segKg(open); liveKg += ok;
+      rows.push({ from: clock(open.start), to: '進行中', dur: mins(open.start, open.end), main: open.main, sub: open.sub, kg: ok });
+    }
+    var elapsed = S.startAt ? mins(S.startAt, S.running ? now : S.stopAt) : 0;
+    $('sElapsed').textContent = f2(elapsed);
+    $('sRate').textContent = r && S.mainRpm !== null ? f2(r[0] * S.mainRpm + r[1] * (S.subRpm || 0)) : '—';
+    $('sKg').textContent = f2(done ? S.result.kg : liveKg);
+
+    // result
+    $('result').classList.toggle('hidden', !done);
+    $('noResult').classList.toggle('hidden', done);
+    $('btnReset').classList.toggle('hidden', !done);
+    $('btnCopy').classList.toggle('hidden', !done);
+    if (done) {
+      $('rKg').textContent = f2(S.result.kg);
+      $('rMain').textContent = f2(S.result.avgMain);
+      $('rSub').textContent = f2(S.result.avgSub);
+      $('rMeta').textContent = '機號 ' + S.machine + '　·　累計排廢時間 ' + f2(S.result.total) + ' 分　·　' + clock(S.startAt) + ' – ' + clock(S.stopAt);
+    }
+
+    // segments
+    $('segBody').innerHTML = rows.map(function (x, i) {
+      return '<tr><td class="l">' + (i + 1) + '</td><td class="l">' + x.from + '</td><td class="l">' + x.to + '</td><td>' + f2(x.dur) + '</td><td>' + f2(x.main) + '</td><td>' + f2(x.sub) + '</td><td><b>' + f2(x.kg) + '</b></td></tr>';
+    }).join('');
+    $('noRows').classList.toggle('hidden', rows.length > 0);
+
+    // rate table
+    $('rateBody').innerHTML = IDS.map(function (id) {
+      return '<tr class="' + (id === S.machine ? 'on' : '') + '"><td class="l"><b>' + id + '</b></td><td>' + RATES[id][0].toFixed(2) + '</td><td>' + RATES[id][1].toFixed(2) + '</td></tr>';
+    }).join('');
+
+    // history
+    $('histList').innerHTML = H.map(function (h, i) {
+      return '<div class="hitem"><div class="top"><span><b>機號 ' + h.machine + '</b>　' + dateStr(h.start) + '</span><span>' + clock(h.start) + ' – ' + clock(h.stop) + '（' + f2(h.total) + ' 分）</span></div>' +
+        '<div class="nums"><div><span>排廢重量 Kg</span><b>' + f2(h.kg) + '</b></div><div><span>平均主GP RPM</span><b>' + f2(h.avgMain) + '</b></div><div><span>平均副GP RPM</span><b>' + f2(h.avgSub) + '</b></div></div>' +
+        '<div><button type="button" class="small" data-copy="' + i + '">複製這筆</button></div></div>';
+    }).join('');
+    $('noHist').classList.toggle('hidden', H.length > 0);
+    $('btnClearHist').disabled = H.length === 0;
+  }
+
+  // ---------- events ----------
+  document.querySelector('nav').addEventListener('click', function (e) { var b = e.target.closest('.tab'); if (b) { tab = b.dataset.tab; render(); window.scrollTo(0, 0); } });
+  $('machineGrid').addEventListener('click', function (e) { var b = e.target.closest('[data-m]'); if (b) pickMachine(b.dataset.m); });
+  $('btnStart').addEventListener('click', start);
+  $('btnStop').addEventListener('click', stop);
+  $('btnMain').addEventListener('click', function () { confirmRpm('main'); });
+  $('btnSub').addEventListener('click', function () { confirmRpm('sub'); });
+  $('btnReset').addEventListener('click', reset);
+  $('btnCopy').addEventListener('click', function () { copy(resultText(H[0] && H[0].stop === S.stopAt ? H[0] : { machine: S.machine, start: S.startAt, stop: S.stopAt, total: S.result.total, kg: S.result.kg, avgMain: S.result.avgMain, avgSub: S.result.avgSub })); });
+  $('histList').addEventListener('click', function (e) { var b = e.target.closest('[data-copy]'); if (b) copy(resultText(H[+b.dataset.copy])); });
+  $('btnClearHist').addEventListener('click', function () { if (confirm('確定清除全部歷史紀錄？此動作無法復原。')) { H = []; save(HKEY, H); render(); } });
+  ['mainInput', 'subInput'].forEach(function (id) {
+    var el = $(id), last = '';
+    el.addEventListener('input', function () {
+      var v = el.value.replace(/[^\d.]/g, '');
+      if (v === '' || RPM_RE.test(v)) last = v;
+      el.value = last;
+      $(id === 'mainInput' ? 'btnMain' : 'btnSub').disabled = !S.machine || !!S.result || !validRpm(last);
+    });
+    el.addEventListener('keydown', function (e) { if (e.key === 'Enter') confirmRpm(id === 'mainInput' ? 'main' : 'sub'); });
+  });
+  setInterval(function () { if (S.running && tab === 'calc') render(); }, 1000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) render(); });
+
+  render();
+
+  // ---------- offline ----------
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  }
+})();
+</script>
+</body>
+</html>
